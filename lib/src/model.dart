@@ -497,7 +497,7 @@ class FlowProject {
   /// `light` or `dark` label colours and tiles.
   String theme;
 
-  /// Background scene: none, day, dusk, night or rain.
+  /// Background scene: none, cloudy, day, dusk, night or rain.
   String scene;
 
   /// Optional top bar: title, status pill, weather, temperature and last update.
@@ -600,7 +600,7 @@ class FlowProject {
 const badgeTones = ['green', 'blue', 'amber', 'red', 'gray'];
 
 /// Background scenes.
-const flowScenes = ['none', 'day', 'dusk', 'night', 'rain'];
+const flowScenes = ['none', 'cloudy', 'day', 'dusk', 'night', 'rain'];
 
 /// The dashboard header drawn across the top of the canvas.
 class FlowHeader {

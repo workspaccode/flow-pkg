@@ -45,12 +45,14 @@ Color socColor(double v) => v >= 50 ? const Color(0xff34b37a) : (v >= 20 ? const
 
 /// Sky gradients per theme (core.js SCENES / DARK_SCENES).
 const _sceneSky = {
+  'cloudy': [Color(0xffc3d1e2), Color(0xffeef2f7)],
   'day': [Color(0xffcfe0f5), Color(0xfff5f8fc)],
   'dusk': [Color(0xfff3c9b1), Color(0xfffbefe7)],
   'night': [Color(0xff0d1628), Color(0xff24324b)],
   'rain': [Color(0xff8f9db0), Color(0xffd6dce4)],
 };
 const _darkSceneSky = {
+  'cloudy': [Color(0xff1b2638), Color(0xff334258)],
   'day': [Color(0xff16263f), Color(0xff2b3f5e)],
   'dusk': [Color(0xff271f36), Color(0xff47364f)],
   'night': [Color(0xff0d1628), Color(0xff24324b)],
@@ -65,7 +67,22 @@ List<List<double>> rainDrops(FlowProject p) {
   return [for (var i = 0; i < n; i++) [r() * p.width * 1.1, r() * p.height, 10 + r() * 14]];
 }
 
-/// Scene background (sky gradient, night stars, falling rain at [time] seconds).
+/// Cloud puffs `[cx, cy, r]` for the cloudy scene (core.js `cloudPuffs`).
+List<List<double>> cloudPuffs(FlowProject p) {
+  var s = 11.0;
+  double r() => (s = (s * 1103515245 + 12345) % 2147483648) / 2147483648;
+  final n = math.max(3, (p.width / 260).round()), out = <List<double>>[];
+  for (var c = 0; c < n; c++) {
+    final cx = (c + .2 + r() * .6) * p.width / n, cy = p.height * (.14 + r() * .2), w = 50 + r() * 50;
+    for (var k = 0; k < 6; k++) {
+      final x = cx + (k - 2.5) * w * .32 + r() * 10, y = cy + (k.isOdd ? -.25 : .1) * w * .35;
+      out.add([x, y, w * (.26 + r() * .14)]);
+    }
+  }
+  return out;
+}
+
+/// Scene background (sky gradient, clouds, night stars, falling rain at [time] seconds).
 void paintScene(Canvas canvas, FlowProject p, double time) {
   final sky = (p.theme == 'dark' ? _darkSceneSky : _sceneSky)[p.scene];
   if (sky == null) return;
@@ -74,6 +91,19 @@ void paintScene(Canvas canvas, FlowProject p, double time) {
     rect,
     Paint()..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: sky).createShader(rect),
   );
+  if (p.scene == 'cloudy') {
+    // SVG group opacity: puffs merge into one layer before fading
+    final dark = p.theme == 'dark';
+    canvas.saveLayer(rect, Paint()..color = Color.fromRGBO(0, 0, 0, dark ? .3 : .55));
+    // feGaussianBlur stdDeviation 9
+    final fill = Paint()
+      ..color = dark ? const Color(0xff4a5a74) : const Color(0xffffffff)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9);
+    for (final c in cloudPuffs(p)) {
+      canvas.drawCircle(Offset(c[0], c[1]), c[2], fill);
+    }
+    canvas.restore();
+  }
   final drops = p.scene == 'night' || p.scene == 'rain' ? rainDrops(p) : const <List<double>>[];
   if (p.scene == 'night') {
     final star = Paint()..color = const Color.fromRGBO(255, 255, 255, .55);

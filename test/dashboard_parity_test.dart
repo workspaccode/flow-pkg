@@ -12,7 +12,7 @@ void main() {
   final fonts = ['$dir/Arial.ttf', '$dir/Arial Bold.ttf'];
   final skip = !fonts.every((f) => File(f).existsSync());
 
-  for (final name in ['dashboard-day', 'dashboard-dark']) {
+  for (final name in ['dashboard-day', 'dashboard-dark', 'villa']) {
     testWidgets('matches the editor PNG export: $name', (tester) async {
       await tester.runAsync(() async {
         final percent = await compareWithEditorPng(

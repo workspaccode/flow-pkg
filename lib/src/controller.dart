@@ -180,7 +180,7 @@ class FlowController extends ChangeNotifier {
     });
   }
 
-  /// Background scene: none, day, dusk, night or rain.
+  /// Background scene: none, cloudy, day, dusk, night or rain.
   void setScene(String scene) {
     if (!flowScenes.contains(scene)) throw ArgumentError.value(scene, 'scene');
     _apply(() => _require().scene = scene);
