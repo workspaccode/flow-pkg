@@ -61,7 +61,8 @@ class FlowAsset {
 
 /// An element on the canvas (solar, battery, inverter, …). [x]/[y] is its center.
 class FlowNode {
-  FlowNode._(this._raw, {
+  FlowNode._(
+    this._raw, {
     required this.id,
     required this.kind,
     required this.name,
@@ -174,7 +175,8 @@ class FlowNode {
 
 /// An animated line between two elements.
 class FlowEdge {
-  FlowEdge._(this._raw, {
+  FlowEdge._(
+    this._raw, {
     required this.id,
     required this.name,
     required this.from,
@@ -198,6 +200,9 @@ class FlowEdge {
     required this.pulseLength,
     required this.glow,
     required this.trackStyle,
+    required this.onTop,
+    this.sourceAnchor,
+    this.targetAnchor,
   });
 
   final Map<String, dynamic> _raw;
@@ -243,6 +248,14 @@ class FlowEdge {
   /// Base track pattern (default [TrackStyle.solid]).
   TrackStyle trackStyle;
 
+  /// Drawn above the elements instead of beneath them (default false), e.g. a
+  /// cable running across a house from its roof panels to a wall inverter.
+  bool onTop;
+
+  /// Optional exact end points, as offsets from the element's centre. When set they
+  /// replace the port point (`sourcePort` still gives the direction for automatic curves).
+  Offset? sourceAnchor, targetAnchor;
+
   factory FlowEdge.fromJson(Map<String, dynamic> json) {
     const error = 'Invalid line data';
     final ports = FlowPort.values.asNameMap();
@@ -261,6 +274,17 @@ class FlowEdge {
     final pulses = opt('pulses', 1, (v) => v is num && v == v.roundToDouble() && v >= 1 && v <= 12 ? v.toInt() : null);
     final pulseLength = opt('pulseLength', .12, (v) => _finite(v, .02, .9));
     final glow = opt('glow', .13, (v) => _finite(v, 0, 1));
+    final onTop = opt('onTop', false, (v) => v is bool ? v : null);
+    Offset? anchor(String key) {
+      final v = json[key];
+      if (v is! List || v.length != 2) throw const FormatException(error);
+      final x = _finite(v[0], -4096, 4096), y = _finite(v[1], -4096, 4096);
+      if (x == null || y == null) throw const FormatException(error);
+      return Offset(x, y);
+    }
+
+    final sourceAnchor = json.containsKey('sourceAnchor') ? anchor('sourceAnchor') : null;
+    final targetAnchor = json.containsKey('targetAnchor') ? anchor('targetAnchor') : null;
     if (json['id'] is! String ||
         json['from'] is! String ||
         json['to'] is! String ||
@@ -281,7 +305,8 @@ class FlowEdge {
         targetOffset == null ||
         pulses == null ||
         pulseLength == null ||
-        glow == null) {
+        glow == null ||
+        onTop == null) {
       throw const FormatException(error);
     }
     final waypoints = <Offset>[];
@@ -316,10 +341,14 @@ class FlowEdge {
       pulseLength: pulseLength,
       glow: glow,
       trackStyle: trackStyle,
+      onTop: onTop,
+      sourceAnchor: sourceAnchor,
+      targetAnchor: targetAnchor,
     );
   }
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{
     ..._raw,
     'id': id,
     'name': name,
@@ -327,7 +356,9 @@ class FlowEdge {
     'to': to,
     'sourcePort': sourcePort.name,
     'targetPort': targetPort.name,
-    'waypoints': [for (final q in waypoints) [q.dx, q.dy]],
+    'waypoints': [
+      for (final q in waypoints) [q.dx, q.dy],
+    ],
     'auto': auto,
     'state': state.name,
     'color': _hex(color),
@@ -344,12 +375,21 @@ class FlowEdge {
     'pulseLength': pulseLength,
     'glow': glow,
     'trackStyle': trackStyle.name,
-  };
+    if (onTop || _raw.containsKey('onTop')) 'onTop': onTop,
+    if (sourceAnchor case final a?) 'sourceAnchor': [a.dx, a.dy],
+    if (targetAnchor case final a?) 'targetAnchor': [a.dx, a.dy],
+    };
+    // A cleared anchor must not survive from the original file.
+    if (sourceAnchor == null) json.remove('sourceAnchor');
+    if (targetAnchor == null) json.remove('targetAnchor');
+    return json;
+  }
 }
 
 /// A Flow Studio project — the `.flow.json` file saved or exported by the editor.
 class FlowProject {
-  FlowProject._(this._raw, {
+  FlowProject._(
+    this._raw, {
     required this.title,
     required this.width,
     required this.height,

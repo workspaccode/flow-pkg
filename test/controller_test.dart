@@ -16,6 +16,33 @@ void main() {
     expect(() => FlowProject.fromJson(bad), throwsFormatException);
   });
 
+  test('lines can be drawn above the elements (onTop)', () {
+    final json = example();
+    final edges = json['edges'] as List;
+    edges[0]['onTop'] = true;
+    final project = FlowProject.fromJson(json);
+    expect(project.edges[0].onTop, isTrue);
+    expect(project.edges[1].onTop, isFalse);
+    expect(project.edges[0].toJson()['onTop'], isTrue);
+    expect(project.edges[1].toJson().containsKey('onTop'), isFalse, reason: 'older files stay unchanged');
+    edges[0]['onTop'] = 'yes';
+    expect(() => FlowProject.fromJson(json), throwsFormatException);
+  });
+
+  test('line anchors pin ends to exact points', () {
+    final json = example();
+    final e = (json['edges'] as List)[0] as Map<String, dynamic>;
+    e['sourceAnchor'] = [10, -5];
+    final project = FlowProject.fromJson(json);
+    final edge = project.edges[0], from = project.node(edge.from)!;
+    expect(routePoints(project, edge).first, Offset(from.x + 10, from.y - 5));
+    expect(edge.toJson()['sourceAnchor'], [10.0, -5.0]);
+    edge.sourceAnchor = null;
+    expect(edge.toJson().containsKey('sourceAnchor'), isFalse);
+    e['sourceAnchor'] = [1];
+    expect(() => FlowProject.fromJson(json), throwsFormatException);
+  });
+
   test('round-trips the editor file', () {
     final project = FlowProject.fromJson(example());
     final again = FlowProject.fromJson(jsonDecode(jsonEncode(project.toJson())) as Map<String, dynamic>);

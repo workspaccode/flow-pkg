@@ -106,3 +106,15 @@ flutter test                    # parity + controller tests
 node tool/geometry_fixtures.js  # regenerate expected paths after changing src/core.js
 cd example && flutter run       # demo app with live values
 ```
+
+## Lines above elements
+
+A line with `"onTop": true` is painted after the elements instead of beneath them — the editor uses
+it for cables that run across a house from its roof panels to a wall inverter. `FlowEdge.onTop`
+defaults to `false`, and older files stay unchanged.
+
+## Anchored line ends
+
+`"sourceAnchor": [dx, dy]` / `"targetAnchor": [dx, dy]` pin a line end to an exact point relative to the
+element's centre instead of a side port — the editor uses them for cables that enter a wall inverter or a
+battery at a specific point. `FlowEdge.sourceAnchor` / `targetAnchor` are `null` when not set.

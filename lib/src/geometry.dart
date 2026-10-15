@@ -43,7 +43,9 @@ List<Offset> _dedupe(List<Offset> pts) => [
 List<Offset> routePoints(FlowProject p, FlowEdge e) {
   final a = p.node(e.from), b = p.node(e.to);
   if (a == null || b == null) return const [];
-  final s = edgePortPoint(a, e.sourcePort, e.sourceOffset), t = edgePortPoint(b, e.targetPort, e.targetOffset);
+  // An anchor pins an end to an exact point relative to the element's centre.
+  final s = e.sourceAnchor != null ? Offset(a.x, a.y) + e.sourceAnchor! : edgePortPoint(a, e.sourcePort, e.sourceOffset);
+  final t = e.targetAnchor != null ? Offset(b.x, b.y) + e.targetAnchor! : edgePortPoint(b, e.targetPort, e.targetOffset);
   if (!e.auto) return [s, ...e.waypoints, t];
   if (e.route != FlowRoute.orthogonal) return [s, t];
   final d1 = _direction(e.sourcePort), d2 = _direction(e.targetPort);

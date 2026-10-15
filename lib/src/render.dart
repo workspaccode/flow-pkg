@@ -257,7 +257,7 @@ class FlowScene {
     canvas.clipRect(Rect.fromLTWH(0, 0, p.width, p.height));
     if (!transparent) canvas.drawRect(Rect.fromLTWH(0, 0, p.width, p.height), Paint()..color = p.background);
 
-    for (final d in _edges) {
+    void paintEdge(_EdgeDraw d) {
       final e = d.edge;
       Paint stroke(Color c, double opacity, double width) => Paint()
         ..style = PaintingStyle.stroke
@@ -269,7 +269,7 @@ class FlowScene {
 
       canvas.drawPath(d.track, stroke(e.trackColor, e.state == FlowState.inactive ? .3 : .85, e.trackWidth));
       final metric = d.metric;
-      if (e.state != FlowState.active || metric == null) continue;
+      if (e.state != FlowState.active || metric == null) return;
 
       // stroke-dasharray: dash gap (see pulseDash) with
       // stroke-dashoffset: -len*direction*(time % duration)/duration
@@ -292,6 +292,11 @@ class FlowScene {
       canvas.drawPath(pulse, stroke(e.color, .95, e.width));
     }
 
+    // Lines marked onTop are painted after the elements.
+    for (final d in _edges) {
+      if (!d.edge.onTop) paintEdge(d);
+    }
+
     for (final d in _nodes) {
       final n = d.node;
       final faded = n.state == FlowState.inactive;
@@ -308,6 +313,10 @@ class FlowScene {
         l.painter.paint(canvas, l.origin);
       }
       if (faded) canvas.restore();
+    }
+
+    for (final d in _edges) {
+      if (d.edge.onTop) paintEdge(d);
     }
   }
 
