@@ -15,10 +15,10 @@ class EnergyScreen extends StatefulWidget {
 
 class _EnergyScreenState extends State<EnergyScreen> {
   // 1. Load the file exported from Flow Studio.
-  final flow = FlowController.asset('assets/hybrid-energy-flow.flow.json');
+  final flow = FlowController.asset('assets/json/Hybrid-inverter-with-generator-backup.flow.json');
   final random = Random();
   late final Timer timer;
-  bool gridOn = false;
+  bool gridOn = true; // Grid starts active in this project
 
   @override
   void initState() {
@@ -28,7 +28,7 @@ class _EnergyScreenState extends State<EnergyScreen> {
       double reading(double min, double max) =>
           double.parse((min + random.nextDouble() * (max - min)).toStringAsFixed(1));
       flow.setNodeData('solar', value: reading(5, 8));
-      flow.setNodeData('home', value: reading(2, 4));
+      flow.setNodeData('inverter', value: reading(4, 6));
     });
   }
 
@@ -42,7 +42,7 @@ class _EnergyScreenState extends State<EnergyScreen> {
   void toggleGrid(bool on) {
     setState(() => gridOn = on);
     flow.setNodeState('grid', on ? FlowState.active : FlowState.inactive);
-    flow.setFlowState('grid', on ? FlowState.active : FlowState.inactive);
+    flow.setFlowState('flow', on ? FlowState.active : FlowState.inactive); // line grid → inverter
   }
 
   @override
