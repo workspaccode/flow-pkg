@@ -62,7 +62,12 @@ class FlowController extends ChangeNotifier {
     final images = <String, FlowImage>{};
     try {
       for (final MapEntry(:key, :value) in next.assets.entries) {
-        if (next.nodes.any((n) => n.kind == key)) images[key] = await FlowImage.decode(value);
+        if (!next.nodes.any((n) => n.kind == key)) continue;
+        images[key] = await FlowImage.decode(value);
+        // the lights-on overlay is decoded alongside its artwork
+        if (value.lit case final lit?) {
+          images['$key#lit'] = await FlowImage.decode(FlowAsset(src: lit, width: value.width, height: value.height));
+        }
       }
     } catch (e) {
       for (final image in images.values) {
@@ -111,6 +116,9 @@ class FlowController extends ChangeNotifier {
   /// Updates the label data of an element. `null` arguments are left unchanged.
   ///
   /// [value], [current] and [efficiency] are usually numbers; strings are shown as-is.
+  ///
+  /// Dashboard extras: [soc] (battery level 0–100), [badge] with [badgeTone] (green, blue, amber,
+  /// red, gray) and [lit] (lights-on overlay). Pass `clearSoc` / an empty [badge] to remove them.
   void setNodeData(
     String id, {
     String? name,
@@ -121,6 +129,11 @@ class FlowController extends ChangeNotifier {
     Object? efficiency,
     String? status,
     bool? showDetails,
+    double? soc,
+    bool clearSoc = false,
+    String? badge,
+    String? badgeTone,
+    bool? lit,
   }) => _apply(() {
     final n = _node(id);
     if (name != null) n.name = name;
@@ -131,7 +144,53 @@ class FlowController extends ChangeNotifier {
     if (efficiency != null) n.efficiency = efficiency;
     if (status != null) n.status = status;
     if (showDetails != null) n.showDetails = showDetails;
+    if (soc != null) n.soc = soc.clamp(0, 100).toDouble();
+    if (clearSoc) n.soc = null;
+    if (badge != null) n.badge = badge.isEmpty ? null : badge;
+    if (badgeTone != null) {
+      if (!badgeTones.contains(badgeTone)) throw ArgumentError.value(badgeTone, 'badgeTone');
+      n.badgeTone = badgeTone;
+    }
+    if (lit != null) n.lit = lit;
   });
+
+  /// Recolours a line, e.g. green while charging and orange while importing.
+  void setFlowColor(String id, Color color, {Color? trackColor}) => _apply(() {
+    final e = _edge(id);
+    e.color = color;
+    if (trackColor != null) e.trackColor = trackColor;
+  });
+
+  /// Updates the dashboard header; `null` arguments are left unchanged, empty strings clear a field.
+  void setHeader({String? title, String? status, String? statusTone, String? weather, String? temperature, String? updated}) {
+    if (statusTone != null && !badgeTones.contains(statusTone)) throw ArgumentError.value(statusTone, 'statusTone');
+    if (weather != null && !const ['', 'sun', 'cloud', 'rain', 'night'].contains(weather)) {
+      throw ArgumentError.value(weather, 'weather');
+    }
+    _apply(() {
+      final h = _require().header ??= FlowHeader();
+      String? keep(String? next, String? old) => next == null ? old : (next.isEmpty ? null : next);
+      h
+        ..title = keep(title, h.title)
+        ..status = keep(status, h.status)
+        ..statusTone = statusTone ?? h.statusTone
+        ..weather = keep(weather, h.weather)
+        ..temperature = keep(temperature, h.temperature)
+        ..updated = keep(updated, h.updated);
+    });
+  }
+
+  /// Background scene: none, day, dusk, night or rain.
+  void setScene(String scene) {
+    if (!flowScenes.contains(scene)) throw ArgumentError.value(scene, 'scene');
+    _apply(() => _require().scene = scene);
+  }
+
+  /// `light` or `dark`.
+  void setTheme(String theme) {
+    if (theme != 'light' && theme != 'dark') throw ArgumentError.value(theme, 'theme');
+    _apply(() => _require().theme = theme);
+  }
 
   /// `1` = from → to, `-1` = to → from.
   void setFlowDirection(String id, int direction) {
@@ -165,6 +224,10 @@ class FlowController extends ChangeNotifier {
         if (value.containsKey('status')) n.status = jsString(value['status']);
         if (value.containsKey('showDetails')) n.showDetails = value['showDetails'] == true;
         if (value.containsKey('state')) n.state = FlowState.parse(value['state']);
+        if (value.containsKey('soc')) n.soc = value['soc'] == null ? null : (value['soc'] as num).clamp(0, 100).toDouble();
+        if (value.containsKey('badge')) n.badge = (value['badge'] ?? '') == '' ? null : jsString(value['badge']);
+        if (value['badgeTone'] case final String tone when badgeTones.contains(tone)) n.badgeTone = tone;
+        if (value.containsKey('lit')) n.lit = value['lit'] == true;
       }
     }
     if (flows is Map) {
@@ -172,6 +235,8 @@ class FlowController extends ChangeNotifier {
         final e = _edge('$key');
         if (value is Map) {
           if (value.containsKey('state')) e.state = FlowState.parse(value['state']);
+          if (value['color'] case final String c) e.color = parseHexColor(c);
+          if (value['trackColor'] case final String c) e.trackColor = parseHexColor(c);
           final direction = value['direction'];
           if (direction != null) {
             if (direction != 1 && direction != -1) throw ArgumentError.value(direction, 'direction');

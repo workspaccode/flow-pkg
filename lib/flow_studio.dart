@@ -14,6 +14,6 @@ export 'src/controller.dart' show FlowController;
 export 'src/geometry.dart'
     show BezierShape, curvedRoute, edgePortPoint, edgeShape, pulseDash, routePoints, roundedRoute, trackDash;
 export 'src/model.dart'
-    show FlowAsset, FlowEdge, FlowNode, FlowPort, FlowProject, FlowRoute, FlowState, LabelSide, TrackStyle, jsString, parseHexColor;
+    show FlowAsset, FlowEdge, FlowHeader, FlowNode, FlowPort, FlowProject, FlowRoute, FlowState, LabelSide, TrackStyle, badgeTones, flowScenes, jsString, parseHexColor;
 export 'src/render.dart' show FlowImage, FlowScene, FlowTextStyle;
 export 'src/view.dart' show FlowStudioView;

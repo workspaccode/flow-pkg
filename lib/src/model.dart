@@ -37,11 +37,14 @@ enum TrackStyle { solid, dashed, dotted }
 
 /// An embedded image (PNG, JPEG, WebP or SVG data URI) keyed by element kind.
 class FlowAsset {
-  FlowAsset({required this.src, required this.width, required this.height});
+  FlowAsset({required this.src, required this.width, required this.height, this.lit});
 
   final String src;
   final double width;
   final double height;
+
+  /// Optional "lights on" overlay (same size as [src]), drawn over the artwork when a node's `lit` is true.
+  final String? lit;
 
   factory FlowAsset.fromJson(Map<String, dynamic> json) {
     final src = json['src'];
@@ -53,10 +56,23 @@ class FlowAsset {
         !RegExp(r'^data:image/(png|jpeg|webp|svg\+xml);base64,', caseSensitive: false).hasMatch(src)) {
       throw const FormatException('Project assets must be embedded images');
     }
-    return FlowAsset(src: src, width: width, height: height);
+    String? lit;
+    if (json.containsKey('lit')) {
+      final l = json['lit'], ls = l is Map ? l['src'] : null;
+      if (ls is! String || !RegExp(r'^data:image/(png|jpeg|webp);base64,', caseSensitive: false).hasMatch(ls)) {
+        throw const FormatException('Project assets must be embedded images');
+      }
+      lit = ls;
+    }
+    return FlowAsset(src: src, width: width, height: height, lit: lit);
   }
 
-  Map<String, dynamic> toJson() => {'src': src, 'width': width, 'height': height};
+  Map<String, dynamic> toJson() => {
+    'src': src,
+    'width': width,
+    'height': height,
+    if (lit != null) 'lit': {'src': lit},
+  };
 }
 
 /// An element on the canvas (solar, battery, inverter, …). [x]/[y] is its center.
@@ -83,6 +99,13 @@ class FlowNode {
     required this.fontSize,
     required this.color,
     required this.showLabel,
+    this.callout,
+    this.calloutTarget,
+    this.soc,
+    this.badge,
+    this.badgeTone = 'gray',
+    this.lit = false,
+    this.tile = false,
   });
 
   final Map<String, dynamic> _raw;
@@ -106,6 +129,23 @@ class FlowNode {
   Color color;
   bool showLabel;
 
+  /// Callout label: top-left of the label relative to the element's centre; a dotted leader joins it
+  /// to [calloutTarget] (relative to the centre, default the centre itself).
+  Offset? callout, calloutTarget;
+
+  /// Battery state of charge, 0–100: a fill bar under the value and the percentage after the name.
+  double? soc;
+
+  /// Status badge text (e.g. Charging) and its tone: green, blue, amber, red or gray.
+  String? badge;
+  String badgeTone;
+
+  /// Draw the asset's lights-on overlay.
+  bool lit;
+
+  /// Draw an isometric platform under the element.
+  bool tile;
+
   factory FlowNode.fromJson(Map<String, dynamic> json) {
     final x = _finite(json['x'], -4096, 8192), y = _finite(json['y'], -4096, 8192);
     final w = _finite(json['w'], 1, 4096), h = _finite(json['h'], 1, 4096);
@@ -122,6 +162,28 @@ class FlowNode {
         side == null) {
       throw const FormatException('Invalid element data');
     }
+    const error = FormatException('Invalid element data');
+    Offset? callout, target;
+    if (json.containsKey('callout')) {
+      final c = json['callout'];
+      final dx = c is Map ? _finite(c['dx'], -4096, 4096) : null, dy = c is Map ? _finite(c['dy'], -4096, 4096) : null;
+      if (dx == null || dy == null) throw error;
+      callout = Offset(dx, dy);
+    }
+    if (json.containsKey('calloutTarget')) {
+      final c = json['calloutTarget'];
+      final dx = c is List && c.length == 2 ? _finite(c[0], -4096, 4096) : null;
+      final dy = c is List && c.length == 2 ? _finite(c[1], -4096, 4096) : null;
+      if (dx == null || dy == null) throw error;
+      target = Offset(dx, dy);
+    }
+    double? soc;
+    if (json['soc'] != null && json['soc'] != '') {
+      soc = _number(json['soc']);
+      if (soc == null || soc < 0 || soc > 100) throw error;
+    }
+    final badge = json['badge'], tone = json['badgeTone'] ?? 'gray', lit = json['lit'] ?? false, tile = json['tile'] ?? false;
+    if ((badge != null && badge is! String) || !badgeTones.contains(tone) || lit is! bool || tile is! bool) throw error;
     return FlowNode._(
       Map.of(json),
       id: json['id'] as String,
@@ -145,10 +207,18 @@ class FlowNode {
       fontSize: fontSize,
       color: color,
       showLabel: json['showLabel'] != false,
+      callout: callout,
+      calloutTarget: target,
+      soc: soc,
+      badge: badge as String?,
+      badgeTone: tone as String,
+      lit: lit,
+      tile: tile,
     );
   }
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{
     ..._raw,
     'id': id,
     'kind': kind,
@@ -170,7 +240,21 @@ class FlowNode {
     'fontSize': fontSize,
     'color': _hex(color),
     if (!showLabel || _raw.containsKey('showLabel')) 'showLabel': showLabel,
-  };
+      if (callout case final c?) 'callout': {'dx': c.dx, 'dy': c.dy},
+      if (calloutTarget case final c?) 'calloutTarget': [c.dx, c.dy],
+      if (soc != null) 'soc': soc,
+      if (badge != null) 'badge': badge,
+      if (badge != null || _raw.containsKey('badgeTone')) 'badgeTone': badgeTone,
+      if (lit) 'lit': true,
+      if (tile) 'tile': true,
+    };
+    for (final (key, set) in [('callout', callout), ('calloutTarget', calloutTarget), ('soc', soc), ('badge', badge)]) {
+      if (set == null) json.remove(key);
+    }
+    if (!lit) json.remove('lit');
+    if (!tile) json.remove('tile');
+    return json;
+  }
 }
 
 /// An animated line between two elements.
@@ -397,6 +481,9 @@ class FlowProject {
     required this.nodes,
     required this.edges,
     required this.assets,
+    this.theme = 'light',
+    this.scene = 'none',
+    this.header,
   });
 
   final Map<String, dynamic> _raw;
@@ -406,6 +493,15 @@ class FlowProject {
   final List<FlowNode> nodes;
   final List<FlowEdge> edges;
   final Map<String, FlowAsset> assets;
+
+  /// `light` or `dark` label colours and tiles.
+  String theme;
+
+  /// Background scene: none, day, dusk, night or rain.
+  String scene;
+
+  /// Optional top bar: title, status pill, weather, temperature and last update.
+  FlowHeader? header;
 
   /// Parses and validates a project with the same rules as the editor.
   factory FlowProject.fromJson(Map<String, dynamic> json) {
@@ -450,8 +546,16 @@ class FlowProject {
       if (value is! Map) throw const FormatException('Project assets must be embedded images');
       assets['$key'] = FlowAsset.fromJson(value.cast<String, dynamic>());
     }
+    final theme = json['theme'] ?? 'light', scene = json['scene'] ?? 'none';
+    if (!const ['light', 'dark'].contains(theme) || !flowScenes.contains(scene)) {
+      throw const FormatException('Invalid canvas settings');
+    }
+    final header = json.containsKey('header') ? FlowHeader.fromJson(json['header']) : null;
     return FlowProject._(
       Map.of(json),
+      theme: theme as String,
+      scene: scene as String,
+      header: header,
       title: _text(json['title']),
       width: width,
       height: height,
@@ -471,7 +575,8 @@ class FlowProject {
   FlowNode? node(String id) => _find(nodes, (n) => n.id == id);
   FlowEdge? edge(String id) => _find(edges, (e) => e.id == id);
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{
     ..._raw,
     'title': title,
     'width': width,
@@ -480,9 +585,67 @@ class FlowProject {
     'nodes': [for (final n in nodes) n.toJson()],
     'edges': [for (final e in edges) e.toJson()],
     'assets': {for (final MapEntry(:key, :value) in assets.entries) key: value.toJson()},
-  };
+      if (theme != 'light' || _raw.containsKey('theme')) 'theme': theme,
+      if (scene != 'none' || _raw.containsKey('scene')) 'scene': scene,
+      if (header case final h?) 'header': h.toJson(),
+    };
+    if (header == null) json.remove('header');
+    return json;
+  }
 
   FlowProject copy() => FlowProject.fromJson(jsonDecode(jsonEncode(toJson())) as Map<String, dynamic>);
+}
+
+/// Tones for badges and the header status pill.
+const badgeTones = ['green', 'blue', 'amber', 'red', 'gray'];
+
+/// Background scenes.
+const flowScenes = ['none', 'day', 'dusk', 'night', 'rain'];
+
+/// The dashboard header drawn across the top of the canvas.
+class FlowHeader {
+  FlowHeader({this.title, this.status, this.statusTone = 'green', this.weather, this.temperature, this.updated});
+
+  String? title, status, temperature, updated;
+  String statusTone;
+
+  /// sun, cloud, rain or night (empty/null for none).
+  String? weather;
+
+  bool get isEmpty =>
+      [title, status, temperature, updated].every((v) => v == null || v.isEmpty) && (weather ?? '').isEmpty;
+
+  factory FlowHeader.fromJson(Object? json) {
+    const error = FormatException('Invalid canvas settings');
+    if (json is! Map) throw error;
+    String? str(String k) {
+      final v = json[k];
+      if (v != null && v is! String) throw error;
+      return v as String?;
+    }
+
+    final tone = json['statusTone'] ?? 'green', weather = str('weather');
+    if (!badgeTones.contains(tone) || !(weather == null || const ['', 'sun', 'cloud', 'rain', 'night'].contains(weather))) {
+      throw error;
+    }
+    return FlowHeader(
+      title: str('title'),
+      status: str('status'),
+      statusTone: tone as String,
+      weather: weather,
+      temperature: str('temperature'),
+      updated: str('updated'),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'title': ?title,
+    'status': ?status,
+    'statusTone': statusTone,
+    'weather': ?weather,
+    'temperature': ?temperature,
+    'updated': ?updated,
+  };
 }
 
 /// Formats a value the way JavaScript template strings do (`3` not `3.0`).

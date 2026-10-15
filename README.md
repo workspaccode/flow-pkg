@@ -82,7 +82,7 @@ default, so older files render exactly as before; present fields are validated
 
 `edgeShape(project, edge)` returns the drawn curve for any route;
 `trackDash(edge)` and `pulseDash(length, edge)` give the dash numbers used by
-the editor's SVG and Lottie exports.
+the editor's SVG export.
 
 ## Fidelity
 
@@ -118,3 +118,19 @@ defaults to `false`, and older files stay unchanged.
 `"sourceAnchor": [dx, dy]` / `"targetAnchor": [dx, dy]` pin a line end to an exact point relative to the
 element's centre instead of a side port — the editor uses them for cables that enter a wall inverter or a
 battery at a specific point. `FlowEdge.sourceAnchor` / `targetAnchor` are `null` when not set.
+
+## Dashboard look
+
+```dart
+flow.setNodeData('battery', soc: 48, badge: 'Charging', badgeTone: 'green');
+flow.setNodeData('home', lit: true);                 // lights-on overlay, when the asset has one
+flow.setFlowColor('grid', const Color(0xfff2a541));  // e.g. orange while importing
+flow.setHeader(status: 'Online', weather: 'sun', temperature: '29°C', updated: 'Last update 12:40');
+flow.setScene('night');                              // none | day | dusk | night | rain (rain animates)
+flow.setTheme('dark');                               // light | dark
+```
+
+`applyData` accepts the same node keys (`soc`, `badge`, `badgeTone`, `lit`) and line `color` /
+`trackColor`. Callout labels (`callout`, `calloutTarget`), tiles (`tile`), theme, scene and header are read
+from the file as designed in the editor. `test/dashboard_parity_test.dart` compares the day and dark/rain
+dashboards with the editor's PNG export.
