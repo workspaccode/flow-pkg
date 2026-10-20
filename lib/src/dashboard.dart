@@ -43,6 +43,22 @@ class FlowTheme {
 
 Color socColor(double v) => v >= 50 ? const Color(0xff34b37a) : (v >= 20 ? const Color(0xffe9a23b) : const Color(0xffe0574a));
 
+/// Ground colours per scene: top (at the horizon) and bottom (core.js GROUND / DARK_GROUND).
+const _ground = {
+  'cloudy': [Color(0xffd2d9e2), Color(0xffb9c3cf)],
+  'day': [Color(0xffd6dfe8), Color(0xffbdc9d6)],
+  'dusk': [Color(0xffeadbd0), Color(0xffd6c3b5)],
+  'night': [Color(0xff1c2738), Color(0xff141d2c)],
+  'rain': [Color(0xffc6cdd6), Color(0xffb4bcc7)],
+};
+const _darkGround = {
+  'cloudy': [Color(0xff26324a), Color(0xff1c2638)],
+  'day': [Color(0xff22314a), Color(0xff1a2539)],
+  'dusk': [Color(0xff2c2438), Color(0xff211b2b)],
+  'night': [Color(0xff1c2738), Color(0xff141d2c)],
+  'rain': [Color(0xff232f44), Color(0xff1a2435)],
+};
+
 /// Sky gradients per theme (core.js SCENES / DARK_SCENES).
 const _sceneSky = {
   'cloudy': [Color(0xffc3d1e2), Color(0xffeef2f7)],
@@ -91,6 +107,21 @@ void paintScene(Canvas canvas, FlowProject p, double time) {
     rect,
     Paint()..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: sky).createShader(rect),
   );
+  if (p.ground) {
+    // fades in over 36px below the horizon
+    final h = p.height * p.horizon, g = (p.theme == 'dark' ? _darkGround : _ground)[p.scene]!;
+    final band = Rect.fromLTWH(0, h, p.width, p.height - h);
+    canvas.drawRect(
+      band,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [g[0].withValues(alpha: 0), g[0], g[1]],
+          stops: [0, math.min(1, 36 / math.max(1, p.height - h)), 1],
+        ).createShader(band),
+    );
+  }
   if (p.scene == 'cloudy') {
     // SVG group opacity: puffs merge into one layer before fading
     final dark = p.theme == 'dark';

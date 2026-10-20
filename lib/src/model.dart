@@ -484,6 +484,8 @@ class FlowProject {
     this.theme = 'light',
     this.scene = 'none',
     this.header,
+    this.ground = true,
+    this.horizon = .5,
   });
 
   final Map<String, dynamic> _raw;
@@ -502,6 +504,10 @@ class FlowProject {
 
   /// Optional top bar: title, status pill, weather, temperature and last update.
   FlowHeader? header;
+
+  /// With a scene: ground fills the canvas below [horizon] (fraction of the height, 0.2–0.9).
+  bool ground;
+  double horizon;
 
   /// Parses and validates a project with the same rules as the editor.
   factory FlowProject.fromJson(Map<String, dynamic> json) {
@@ -551,11 +557,15 @@ class FlowProject {
       throw const FormatException('Invalid canvas settings');
     }
     final header = json.containsKey('header') ? FlowHeader.fromJson(json['header']) : null;
+    final ground = json['ground'] ?? true, horizon = json.containsKey('horizon') ? _finite(json['horizon'], .2, .9) : .5;
+    if (ground is! bool || horizon == null) throw const FormatException('Invalid canvas settings');
     return FlowProject._(
       Map.of(json),
       theme: theme as String,
       scene: scene as String,
       header: header,
+      ground: ground,
+      horizon: horizon,
       title: _text(json['title']),
       width: width,
       height: height,
@@ -588,8 +598,11 @@ class FlowProject {
       if (theme != 'light' || _raw.containsKey('theme')) 'theme': theme,
       if (scene != 'none' || _raw.containsKey('scene')) 'scene': scene,
       if (header case final h?) 'header': h.toJson(),
+      if (!ground) 'ground': false,
+      if (horizon != .5 || _raw.containsKey('horizon')) 'horizon': horizon,
     };
     if (header == null) json.remove('header');
+    if (ground) json.remove('ground');
     return json;
   }
 
